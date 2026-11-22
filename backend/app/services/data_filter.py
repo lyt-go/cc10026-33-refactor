@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.services.base import BaseModuleService
+from app.services.field_contract import read_column
 from app.store import store
 
 
@@ -38,10 +39,10 @@ class DataFilterService(BaseModuleService):
                 field = rule.get("过滤字段", "")
                 condition = rule.get("过滤条件", "")
                 null_handling = rule.get("空值处理", "")
-                row_value = row.get(field)
+                cell = read_column(row, field)
 
                 # 空值处理
-                if row_value is None or row_value == "":
+                if cell.is_empty:
                     if null_handling == "排除空值":
                         passed = False
                         break
@@ -49,8 +50,8 @@ class DataFilterService(BaseModuleService):
                         continue
 
                 # 条件匹配
-                if condition and row_value:
-                    if condition.casefold() not in str(row_value).casefold():
+                if condition and cell.value:
+                    if condition.casefold() not in str(cell.value).casefold():
                         passed = False
                         break
 

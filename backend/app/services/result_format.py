@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.services.base import BaseModuleService
+from app.services.field_contract import parse_field_mapping, read_column
 from app.store import store
 
 
@@ -42,18 +43,20 @@ class ResultFormatService(BaseModuleService):
         sort_field = template.get("排序字段", "")
 
         # 字段映射
-        if field_mapping:
+        if field_mapping and data_rows:
+            pairs = parse_field_mapping(field_mapping)
             mapped = []
             for row in data_rows:
                 mapped_row = {}
-                for orig, new in [pair.split(":") for pair in field_mapping.split(",") if ":" in pair]:
-                    mapped_row[new.strip()] = row.get(orig.strip(), "")
+                for orig, new in pairs:
+                    mapped_row[new] = read_column(row, orig).or_default("")
                 mapped.append(mapped_row if mapped_row else row)
             data_rows = mapped
 
         # 排序
-        if sort_field and sort_field in (data_rows[0] if data_rows else {}):
-            data_rows = sorted(data_rows, key=lambda r: str(r.get(sort_field, "")))
+        first_row = data_rows[0] if data_rows else {}
+        if sort_field and not read_column(first_row, sort_field).is_missing:
+            data_rows = sorted(data_rows, key=lambda r: str(read_column(r, sort_field).or_default("")))
 
         if output_format == "csv":
             return self._to_csv(data_rows)
@@ -67,7 +70,7 @@ class ResultFormatService(BaseModuleService):
         keys = list(data_rows[0].keys())
         lines = [",".join(keys)]
         for row in data_rows:
-            lines.append(",".join(str(row.get(k, "")) for k in keys))
+            lines.append(",".join(str(read_column(row, k).or_default("")) for k in keys))
         return "\n".join(lines)
 
     def run_action(self, entry_id: int, action: str) -> tuple[dict[str, Any] | None, str]:
